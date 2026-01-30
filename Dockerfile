@@ -87,9 +87,9 @@ ENV OPENCLAW_BETA=${OPENCLAW_BETA} \
     NPM_CONFIG_UNSAFE_PERM=true
 
 RUN if [ "$OPENCLAW_BETA" = "true" ]; then \
-    npm install -g clawdbot@beta; \
+    bun install -g openclaw@beta; \
     else \
-    npm install -g clawdbot; \
+    bun install -g openclaw; \
     fi && \
     if command -v openclaw >/dev/null 2>&1; then \
     echo "✅ openclaw binary found"; \
