@@ -55,6 +55,7 @@ services:
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY}
 
       SERVICE_URL_OPENCLAW_18789: null
+      SERVICE_URL_OPENCLAWWEBHOOK_8788: null
       BASE_URL: 'https://${SERVICE_FQDN_OPENCLAW}'
       PUBLIC_URL: 'https://${SERVICE_FQDN_OPENCLAW}'
       # Bootstrap controls

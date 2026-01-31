@@ -59,9 +59,10 @@ ENV UV_INSTALL_DIR="/usr/local/bin"
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install Bun
+ENV BUN_INSTALL_NODE=0
+ENV BUN_INSTALL="/root/.bun"
 RUN apt-get update && apt-get install -y unzip && rm -rf /var/lib/apt/lists/* && \
     curl -fsSL https://bun.sh/install | bash
-ENV BUN_INSTALL="/root/.bun"
 ENV PATH="/root/.bun/bin:/root/.bun/install/global/bin:${PATH}"
 
 # Install Vercel, Marp, QMD
