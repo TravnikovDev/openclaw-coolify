@@ -91,6 +91,12 @@ services:
       - docker-proxy
 
     command: ["bash", "/app/scripts/bootstrap.sh"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:18789/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
 
   docker-proxy:
     image: tecnativa/docker-socket-proxy:latest
@@ -108,46 +114,6 @@ services:
       VERSION: 1
       EXEC: 1       # Run commands (exec)
       EVENTS: 1     # Listen for events (if needed)
-
-#  qdrant:
-#    image: qdrant/qdrant:latest
-#    restart: unless-stopped
-#    volumes:
-#      - qdrant-data:/qdrant/storage
-
-#  linkding:
-#    image: sissbruecker/linkding:latest
-#    restart: unless-stopped
-#    volumes:
-#      - linkding-data:/etc/linkding/data
-#    environment:
-#      - LD_DISABLE_BACKGROUND_TASKS=False
-#      - LD_DISABLE_URL_VALIDATION=False
-
-#  miniflux:
-#    image: miniflux/miniflux:latest
-#    restart: unless-stopped
-#    depends_on:
-#      - miniflux-db
-#    environment:
-#      - DATABASE_URL=postgres://miniflux:secret@miniflux-db/miniflux?sslmode=disable
-#      - RUN_MIGRATIONS=1
-#      - CREATE_ADMIN=1
-#      - ADMIN_USERNAME=admin
-#      - ADMIN_PASSWORD=admin123
-#      - BASE_URL=http://localhost:8080
-
-#  miniflux-db:
-#    image: postgres:15-alpine
-#    restart: unless-stopped
-#    environment:
-#      - POSTGRES_USER=miniflux
-#      - POSTGRES_PASSWORD=secret
-#      - POSTGRES_DB=miniflux
-#    volumes:
-#      - miniflux-db:/var/lib/postgresql/data
-
-  
 
   searxng:
     build:
@@ -174,8 +140,4 @@ volumes:
   openclaw-config:
   openclaw-workspace:
   searxng-data:
-
   registry-data:
-#  qdrant-data:
-#  linkding-data:
-#  miniflux-db:
