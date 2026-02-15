@@ -100,6 +100,12 @@ RUN ln -s /usr/bin/fdfind /usr/bin/fd || true && \
 # Stage 4: Application dependencies (package installations)
 FROM runtimes AS dependencies
 
+# Re-ensure build tools are ready for native compilation (better-sqlite3)
+RUN apt-get update && apt-get install -y python3 make g++ && \
+    npm install -g node-gyp && \
+    rm -rf /var/lib/apt/lists/*
+# ---------------------------
+
 # OpenClaw install
 ARG OPENCLAW_BETA=false
 ENV OPENCLAW_BETA=${OPENCLAW_BETA} \
