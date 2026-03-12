@@ -11,7 +11,7 @@ services:
       context: .
       args:
         - OPENCLAW_BETA=${OPENCLAW_BETA:-false}
-    restart: on-failure:10
+    restart: unless-stopped
     ulimits:
       nofile:
         soft: 65535
