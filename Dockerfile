@@ -91,7 +91,6 @@ RUN curl -L https://github.com/azlux/uv/releases/latest/download/uv-linux-x64 -o
 
 # Claude + Kimi
 RUN curl -fsSL https://claude.ai/install.sh | bash && \
-    curl -L https://code.kimi.com/install.sh | bash && \
     command -v uv
 
 # Make sure uv and other local bins are available
