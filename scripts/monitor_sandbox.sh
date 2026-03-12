@@ -5,6 +5,8 @@
 LOG_FILE="${OPENCLAW_WORKSPACE:-/data/openclaw-workspace}/monitor.log"
 RECOVERY_SCRIPT="${OPENCLAW_WORKSPACE:-/data/openclaw-workspace}/recover_sandbox.sh"
 
+mkdir -p "$(dirname "$LOG_FILE")"
+
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
 }
