@@ -6,6 +6,17 @@ export DOCKER_HOST="${DOCKER_HOST:-tcp://docker-proxy:2375}"
 
 echo "🦞 Building OpenClaw Sandbox Base Image..."
 
+if ! command -v docker >/dev/null 2>&1; then
+    echo "⚠️  Skipping sandbox base image bootstrap: docker CLI is not installed in this container."
+    exit 0
+fi
+
+if ! docker version >/dev/null 2>&1; then
+    echo "⚠️  Skipping sandbox base image bootstrap: cannot reach Docker via $DOCKER_HOST."
+    echo "   Docker-backed sandbox sessions will remain unavailable until the Docker proxy is reachable."
+    exit 0
+fi
+
 # Use python slim as a solid base
 BASE_IMAGE="python:3.11-slim-bookworm"
 TARGET_IMAGE="openclaw-sandbox:bookworm-slim"

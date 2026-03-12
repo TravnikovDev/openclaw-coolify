@@ -4,6 +4,9 @@
 
 STATE_FILE="${OPENCLAW_STATE_DIR:-/data/.openclaw}/state/sandboxes.json"
 LOG_FILE="${OPENCLAW_WORKSPACE:-/data/openclaw-workspace}/recovery.log"
+export DOCKER_HOST="${DOCKER_HOST:-tcp://docker-proxy:2375}"
+
+mkdir -p "$(dirname "$LOG_FILE")"
 
 log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
@@ -11,6 +14,16 @@ log() {
 
 if [ ! -f "$STATE_FILE" ]; then
   log "ℹ️  No state file found at $STATE_FILE. Nothing to recover."
+  exit 0
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+  log "⚠️  Skipping recovery: docker CLI is not installed in the gateway container."
+  exit 0
+fi
+
+if ! docker version >/dev/null 2>&1; then
+  log "⚠️  Skipping recovery: cannot reach Docker via $DOCKER_HOST."
   exit 0
 fi
 

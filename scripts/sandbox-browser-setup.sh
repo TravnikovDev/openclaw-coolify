@@ -6,6 +6,17 @@ export DOCKER_HOST="${DOCKER_HOST:-tcp://docker-proxy:2375}"
 
 echo "🦞 Building OpenClaw Sandbox Browser Image..."
 
+if ! command -v docker >/dev/null 2>&1; then
+    echo "⚠️  Skipping sandbox browser image bootstrap: docker CLI is not installed in this container."
+    exit 0
+fi
+
+if ! docker version >/dev/null 2>&1; then
+    echo "⚠️  Skipping sandbox browser image bootstrap: cannot reach Docker via $DOCKER_HOST."
+    echo "   Browser sandboxes will remain unavailable until the Docker proxy is reachable."
+    exit 0
+fi
+
 # Use playwright image for browser capabilities
 BASE_IMAGE="mcr.microsoft.com/playwright:v1.41.0-jammy"
 TARGET_IMAGE="openclaw-sandbox-browser:bookworm-slim"

@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1
 
+FROM docker:cli AS dockercli
+
 ########################################
 # Stage 1: Base System
 ########################################
@@ -45,6 +47,8 @@ RUN ln -sf /usr/bin/python3 /usr/bin/python && \
 # Stage 2: Runtimes
 ########################################
 FROM base AS runtimes
+
+COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
 
 ENV BUN_INSTALL="/data/.bun" \
     PATH="/usr/local/go/bin:/data/.bun/bin:/data/.bun/install/global/bin:$PATH"

@@ -64,6 +64,19 @@ EOF
 
 seed_agent "main" "OpenClaw"
 
+run_optional_bootstrap_script() {
+  local script_path="$1"
+  local step_name="$2"
+
+  if [ ! -f "$script_path" ]; then
+    return 0
+  fi
+
+  if ! bash "$script_path"; then
+    echo "⚠️  $step_name failed. Continuing startup without it."
+  fi
+}
+
 # ----------------------------
 # Generate Config with Prime Directive
 # ----------------------------
@@ -155,8 +168,8 @@ export OPENCLAW_STATE_DIR="$OPENCLAW_STATE"
 # ----------------------------
 # Sandbox setup
 # ----------------------------
-[ -f scripts/sandbox-setup.sh ] && bash scripts/sandbox-setup.sh
-[ -f scripts/sandbox-browser-setup.sh ] && bash scripts/sandbox-browser-setup.sh
+run_optional_bootstrap_script "scripts/sandbox-setup.sh" "Sandbox base image bootstrap"
+run_optional_bootstrap_script "scripts/sandbox-browser-setup.sh" "Sandbox browser image bootstrap"
 
 # ----------------------------
 # Recovery & Monitoring
@@ -168,7 +181,9 @@ if [ -f scripts/recover_sandbox.sh ]; then
   chmod +x "$WORKSPACE_DIR/recover_sandbox.sh" "$WORKSPACE_DIR/monitor_sandbox.sh"
   
   # Run initial recovery
-  bash "$WORKSPACE_DIR/recover_sandbox.sh"
+  if ! bash "$WORKSPACE_DIR/recover_sandbox.sh"; then
+    echo "⚠️  Sandbox recovery failed. Continuing startup without blocking the gateway."
+  fi
   
   # Start background monitor
   nohup bash "$WORKSPACE_DIR/monitor_sandbox.sh" >/dev/null 2>&1 &
