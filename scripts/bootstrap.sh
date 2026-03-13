@@ -165,6 +165,30 @@ sync_sandbox_workspace_access() {
   fi
 }
 
+cleanup_removed_plugins_config() {
+  local tmp_config=""
+
+  [ -f "$CONFIG_FILE" ] || return 0
+
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "⚠️  jq is unavailable; skipping stale plugin cleanup."
+    return 0
+  fi
+
+  if ! jq -e '.plugins.entries["google-antigravity-auth"]? != null' "$CONFIG_FILE" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  echo "🧹 Removing stale plugin config: google-antigravity-auth"
+  tmp_config="$(mktemp)"
+  if jq 'del(.plugins.entries["google-antigravity-auth"])' "$CONFIG_FILE" > "$tmp_config"; then
+    mv "$tmp_config" "$CONFIG_FILE"
+  else
+    rm -f "$tmp_config"
+    echo "⚠️  Failed to remove stale plugin config from $CONFIG_FILE."
+  fi
+}
+
 normalize_sandbox_workspace_access
 
 # ----------------------------
@@ -192,9 +216,6 @@ if [ ! -f "$CONFIG_FILE" ]; then
         "enabled": true
       },
       "telegram": {
-        "enabled": true
-      },
-      "google-antigravity-auth": {
         "enabled": true
       }
     }
@@ -258,6 +279,7 @@ export OPENCLAW_STATE_DIR="$OPENCLAW_STATE"
 
 ensure_openclaw_helper_commands
 sync_sandbox_workspace_access
+cleanup_removed_plugins_config
 
 if ! ensure_openclaw_cli; then
   echo "❌ OpenClaw CLI binary not found in PATH or the global npm install."
