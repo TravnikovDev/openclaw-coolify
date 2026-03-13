@@ -8,6 +8,7 @@ fi
 OPENCLAW_STATE="${OPENCLAW_STATE_DIR:-/data/.openclaw}"
 CONFIG_FILE="$OPENCLAW_STATE/openclaw.json"
 WORKSPACE_DIR="${OPENCLAW_WORKSPACE:-/data/openclaw-workspace}"
+OPENCLAW_SANDBOX_WORKSPACE_ACCESS="${OPENCLAW_SANDBOX_WORKSPACE_ACCESS:-rw}"
 
 mkdir -p "$OPENCLAW_STATE" "$WORKSPACE_DIR"
 chmod 700 "$OPENCLAW_STATE"
@@ -123,6 +124,49 @@ EOF
   return 1
 }
 
+normalize_sandbox_workspace_access() {
+  case "$OPENCLAW_SANDBOX_WORKSPACE_ACCESS" in
+    none|ro|rw)
+      ;;
+    *)
+      echo "⚠️  Invalid OPENCLAW_SANDBOX_WORKSPACE_ACCESS='$OPENCLAW_SANDBOX_WORKSPACE_ACCESS'. Falling back to 'rw'."
+      OPENCLAW_SANDBOX_WORKSPACE_ACCESS="rw"
+      ;;
+  esac
+}
+
+sync_sandbox_workspace_access() {
+  local current_access=""
+  local tmp_config=""
+
+  [ -f "$CONFIG_FILE" ] || return 0
+
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "⚠️  jq is unavailable; skipping sandbox workspace access sync."
+    return 0
+  fi
+
+  current_access="$(jq -r '.agents.defaults.sandbox.workspaceAccess // empty' "$CONFIG_FILE" 2>/dev/null || true)"
+  if [ "$current_access" = "$OPENCLAW_SANDBOX_WORKSPACE_ACCESS" ]; then
+    return 0
+  fi
+
+  echo "🔧 Setting sandbox workspace access to '$OPENCLAW_SANDBOX_WORKSPACE_ACCESS'..."
+  tmp_config="$(mktemp)"
+  if jq --arg workspace_access "$OPENCLAW_SANDBOX_WORKSPACE_ACCESS" '
+    .agents = (.agents // {}) |
+    .agents.defaults = (.agents.defaults // {}) |
+    .agents.defaults.sandbox = ((.agents.defaults.sandbox // {}) + {workspaceAccess: $workspace_access})
+  ' "$CONFIG_FILE" > "$tmp_config"; then
+    mv "$tmp_config" "$CONFIG_FILE"
+  else
+    rm -f "$tmp_config"
+    echo "⚠️  Failed to update sandbox workspace access in $CONFIG_FILE."
+  fi
+}
+
+normalize_sandbox_workspace_access
+
 # ----------------------------
 # Generate Config with Prime Directive
 # ----------------------------
@@ -193,6 +237,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
       "sandbox": {
         "mode": "non-main",
         "scope": "session",
+        "workspaceAccess": "$OPENCLAW_SANDBOX_WORKSPACE_ACCESS",
         "browser": {
           "enabled": true
         }
@@ -212,6 +257,7 @@ fi
 export OPENCLAW_STATE_DIR="$OPENCLAW_STATE"
 
 ensure_openclaw_helper_commands
+sync_sandbox_workspace_access
 
 if ! ensure_openclaw_cli; then
   echo "❌ OpenClaw CLI binary not found in PATH or the global npm install."

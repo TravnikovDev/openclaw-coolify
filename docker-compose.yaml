@@ -42,6 +42,7 @@ services:
       # Tell the binary where to look for state/config
       OPENCLAW_STATE_DIR: /data/.openclaw
       OPENCLAW_WORKSPACE: /data/openclaw-workspace
+      OPENCLAW_SANDBOX_WORKSPACE_ACCESS: ${OPENCLAW_SANDBOX_WORKSPACE_ACCESS:-rw}
 
       # API Keys injected from .env or Coolify
       OPENAI_API_KEY: ${OPENAI_API_KEY}
