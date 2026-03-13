@@ -5,7 +5,7 @@ FROM docker:cli AS dockercli
 ########################################
 # Stage 1: Base System
 ########################################
-FROM node:20-bookworm-slim AS base
+FROM node:24-bookworm AS base
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_ROOT_USER_ACTION=ignore
@@ -81,13 +81,30 @@ RUN --mount=type=cache,target=/data/.bun/install/cache \
 # Ensure global npm bin is in PATH
 ENV PATH="/usr/local/bin:/usr/local/lib/node_modules/.bin:${PATH}"
 
-# OpenClaw (npm install)
+# OpenClaw CLI
 RUN --mount=type=cache,target=/data/.npm \
+    set -eux; \
     if [ "$OPENCLAW_BETA" = "true" ]; then \
-    npm install -g openclaw@beta; \
+        npm install -g openclaw@beta; \
     else \
-    npm install -g openclaw; \
-    fi 
+        npm install -g openclaw@latest; \
+    fi; \
+    if ! command -v openclaw >/dev/null 2>&1; then \
+        npm_root="$(npm root -g)"; \
+        pkg_json="$npm_root/openclaw/package.json"; \
+        if [ ! -f "$pkg_json" ]; then \
+            echo "OpenClaw package metadata not found after npm install" >&2; \
+            exit 1; \
+        fi; \
+        bin_rel="$(node -e 'const pkg=require(process.argv[1]);const bin=pkg.bin;if(typeof bin==="string"){process.stdout.write(bin);process.exit(0)}if(bin&&typeof bin.openclaw==="string"){process.stdout.write(bin.openclaw);process.exit(0)}const first=Object.values(bin||{}).find(Boolean);if(first){process.stdout.write(first)}' "$pkg_json")"; \
+        if [ -z "$bin_rel" ] || [ ! -f "$npm_root/openclaw/$bin_rel" ]; then \
+            echo "OpenClaw CLI entrypoint not found after npm install" >&2; \
+            exit 1; \
+        fi; \
+        printf '%s\n%s\n' '#!/usr/bin/env bash' "exec node \"$npm_root/openclaw/$bin_rel\" \"\$@\"" > /usr/local/bin/openclaw; \
+        chmod +x /usr/local/bin/openclaw; \
+    fi; \
+    command -v openclaw
 
 # Install uv explicitly
 RUN curl -L https://github.com/azlux/uv/releases/latest/download/uv-linux-x64 -o /usr/local/bin/uv && \
@@ -111,6 +128,7 @@ COPY . .
 # Symlinks
 RUN ln -sf /data/.claude/bin/claude /usr/local/bin/claude || true && \
     ln -sf /data/.kimi/bin/kimi /usr/local/bin/kimi || true && \
+    ln -sf /app/scripts/openclaw-approve.sh /usr/local/bin/openclaw-approve || true && \
     chmod +x /app/scripts/*.sh
 
 ENV PATH="/root/.local/bin:/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin:/data/.bun/bin:/data/.bun/install/global/bin:/data/.claude/bin:/data/.kimi/bin"

@@ -78,7 +78,6 @@ run_optional_bootstrap_script() {
 }
 
 OPENCLAW_BIN=""
-OPENCLAW_DISPLAY="openclaw"
 OPENCLAW_APPROVE_CMD="openclaw-approve"
 
 ensure_openclaw_helper_commands() {
@@ -94,57 +93,31 @@ ensure_openclaw_helper_commands() {
 ensure_openclaw_cli() {
   local wrapper_path="/usr/local/bin/openclaw"
   local npm_root=""
-  local pkg=""
   local pkg_json=""
   local bin_rel=""
   local entry_path=""
 
   if command -v openclaw >/dev/null 2>&1; then
     OPENCLAW_BIN="$(command -v openclaw)"
-    OPENCLAW_DISPLAY="openclaw"
-    return 0
-  fi
-
-  if command -v clawdbot >/dev/null 2>&1; then
-    ln -sf "$(command -v clawdbot)" "$wrapper_path" || true
-    if command -v openclaw >/dev/null 2>&1; then
-      OPENCLAW_BIN="$(command -v openclaw)"
-      OPENCLAW_DISPLAY="openclaw"
-    else
-      OPENCLAW_BIN="$(command -v clawdbot)"
-      OPENCLAW_DISPLAY="clawdbot"
-    fi
     return 0
   fi
 
   if command -v npm >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
     npm_root="$(npm root -g 2>/dev/null || true)"
-
-    for pkg in openclaw clawdbot; do
-      pkg_json="$npm_root/$pkg/package.json"
-      if [ ! -f "$pkg_json" ]; then
-        continue
-      fi
-
+    pkg_json="$npm_root/openclaw/package.json"
+    if [ -f "$pkg_json" ]; then
       bin_rel="$(node -e 'const pkg=require(process.argv[1]);const bin=pkg.bin;if(typeof bin==="string"){process.stdout.write(bin);process.exit(0)}if(bin&&typeof bin.openclaw==="string"){process.stdout.write(bin.openclaw);process.exit(0)}const first=Object.values(bin||{}).find(Boolean);if(first){process.stdout.write(first)}' "$pkg_json" 2>/dev/null || true)"
-      if [ -z "$bin_rel" ]; then
-        continue
-      fi
-
-      entry_path="$npm_root/$pkg/$bin_rel"
-      if [ ! -f "$entry_path" ]; then
-        continue
-      fi
-
-      cat >"$wrapper_path" <<EOF
+      entry_path="$npm_root/openclaw/$bin_rel"
+      if [ -n "$bin_rel" ] && [ -f "$entry_path" ]; then
+        cat >"$wrapper_path" <<EOF
 #!/usr/bin/env bash
 exec node "$entry_path" "\$@"
 EOF
-      chmod +x "$wrapper_path"
-      OPENCLAW_BIN="$wrapper_path"
-      OPENCLAW_DISPLAY="openclaw"
-      return 0
-    done
+        chmod +x "$wrapper_path"
+        OPENCLAW_BIN="$wrapper_path"
+        return 0
+      fi
+    fi
   fi
 
   return 1
@@ -305,7 +278,7 @@ echo "   1. Access the UI using the link above."
 echo "   2. To approve this machine, run inside the container:"
 echo "      $OPENCLAW_APPROVE_CMD"
 echo "   3. To start the onboarding wizard:"
-echo "      $OPENCLAW_DISPLAY onboard"
+echo "      openclaw onboard"
 echo ""
 echo "=================================================================="
 echo "🔧 Current ulimit is: $(ulimit -n)"
