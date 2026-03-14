@@ -9,6 +9,9 @@ OPENCLAW_STATE="${OPENCLAW_STATE_DIR:-/data/.openclaw}"
 CONFIG_FILE="$OPENCLAW_STATE/openclaw.json"
 WORKSPACE_DIR="${OPENCLAW_WORKSPACE:-/data/openclaw-workspace}"
 OPENCLAW_SANDBOX_WORKSPACE_ACCESS="${OPENCLAW_SANDBOX_WORKSPACE_ACCESS:-rw}"
+OPENCLAW_GATEWAY_BIND="${OPENCLAW_GATEWAY_BIND:-lan}"
+OPENCLAW_GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-18789}"
+TOKEN="${OPENCLAW_GATEWAY_TOKEN:-}"
 
 mkdir -p "$OPENCLAW_STATE" "$WORKSPACE_DIR"
 chmod 700 "$OPENCLAW_STATE"
@@ -135,6 +138,35 @@ normalize_sandbox_workspace_access() {
   esac
 }
 
+normalize_gateway_bind() {
+  case "$OPENCLAW_GATEWAY_BIND" in
+    loopback|lan|tailnet|auto|custom)
+      ;;
+    *)
+      echo "⚠️  Invalid OPENCLAW_GATEWAY_BIND='$OPENCLAW_GATEWAY_BIND'. Falling back to 'lan'."
+      OPENCLAW_GATEWAY_BIND="lan"
+      ;;
+  esac
+}
+
+generate_gateway_token() {
+  openssl rand -hex 24 2>/dev/null || node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"
+}
+
+ensure_gateway_token() {
+  if [ -n "$TOKEN" ]; then
+    return 0
+  fi
+
+  if [ -f "$CONFIG_FILE" ]; then
+    TOKEN="$(jq -r '.gateway.auth.token // empty' "$CONFIG_FILE" 2>/dev/null || grep -o '"token": "[^"]*"' "$CONFIG_FILE" | tail -1 | cut -d'"' -f4)"
+  fi
+
+  if [ -z "$TOKEN" ]; then
+    TOKEN="$(generate_gateway_token)"
+  fi
+}
+
 sync_sandbox_workspace_access() {
   local current_access=""
   local tmp_config=""
@@ -165,6 +197,54 @@ sync_sandbox_workspace_access() {
   fi
 }
 
+sync_gateway_settings() {
+  local current_bind=""
+  local current_port=""
+  local current_mode=""
+  local current_token=""
+  local tmp_config=""
+
+  [ -f "$CONFIG_FILE" ] || return 0
+
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "⚠️  jq is unavailable; skipping gateway config sync."
+    return 0
+  fi
+
+  current_bind="$(jq -r '.gateway.bind // empty' "$CONFIG_FILE" 2>/dev/null || true)"
+  current_port="$(jq -r '.gateway.port // empty' "$CONFIG_FILE" 2>/dev/null || true)"
+  current_mode="$(jq -r '.gateway.mode // empty' "$CONFIG_FILE" 2>/dev/null || true)"
+  current_token="$(jq -r '.gateway.auth.token // empty' "$CONFIG_FILE" 2>/dev/null || true)"
+
+  if [ "$current_bind" = "$OPENCLAW_GATEWAY_BIND" ] &&
+     [ "$current_port" = "$OPENCLAW_GATEWAY_PORT" ] &&
+     [ "$current_mode" = "local" ] &&
+     [ "$current_token" = "$TOKEN" ]; then
+    return 0
+  fi
+
+  echo "🔧 Syncing gateway settings (bind=$OPENCLAW_GATEWAY_BIND, port=$OPENCLAW_GATEWAY_PORT)..."
+  tmp_config="$(mktemp)"
+  if jq \
+    --arg bind "$OPENCLAW_GATEWAY_BIND" \
+    --arg token "$TOKEN" \
+    --argjson port "$OPENCLAW_GATEWAY_PORT" \
+    '
+      .gateway = (.gateway // {}) |
+      .gateway.port = $port |
+      .gateway.mode = "local" |
+      .gateway.bind = $bind |
+      .gateway.controlUi = ((.gateway.controlUi // {}) + {enabled: true, allowInsecureAuth: false}) |
+      .gateway.trustedProxies = ["*"] |
+      .gateway.auth = ((.gateway.auth // {}) + {mode: "token", token: $token})
+    ' "$CONFIG_FILE" > "$tmp_config"; then
+    mv "$tmp_config" "$CONFIG_FILE"
+  else
+    rm -f "$tmp_config"
+    echo "⚠️  Failed to update gateway settings in $CONFIG_FILE."
+  fi
+}
+
 cleanup_removed_plugins_config() {
   local tmp_config=""
 
@@ -190,13 +270,14 @@ cleanup_removed_plugins_config() {
 }
 
 normalize_sandbox_workspace_access
+normalize_gateway_bind
+ensure_gateway_token
 
 # ----------------------------
 # Generate Config with Prime Directive
 # ----------------------------
 if [ ! -f "$CONFIG_FILE" ]; then
   echo "🏥 Generating openclaw.json with Prime Directive..."
-  TOKEN=$(openssl rand -hex 24 2>/dev/null || node -e "console.log(require('crypto').randomBytes(24).toString('hex'))")
   cat >"$CONFIG_FILE" <<EOF
 {
 "commands": {
@@ -231,7 +312,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
   "gateway": {
   "port": $OPENCLAW_GATEWAY_PORT,
   "mode": "local",
-    "bind": "lan",
+    "bind": "$OPENCLAW_GATEWAY_BIND",
     "controlUi": {
       "enabled": true,
       "allowInsecureAuth": false
@@ -280,6 +361,7 @@ export OPENCLAW_STATE_DIR="$OPENCLAW_STATE"
 ensure_openclaw_helper_commands
 sync_sandbox_workspace_access
 cleanup_removed_plugins_config
+sync_gateway_settings
 
 if ! ensure_openclaw_cli; then
   echo "❌ OpenClaw CLI binary not found in PATH or the global npm install."
@@ -350,4 +432,9 @@ echo "      openclaw onboard"
 echo ""
 echo "=================================================================="
 echo "🔧 Current ulimit is: $(ulimit -n)"
-exec "$OPENCLAW_BIN" gateway run
+exec "$OPENCLAW_BIN" gateway run \
+  --allow-unconfigured \
+  --bind "$OPENCLAW_GATEWAY_BIND" \
+  --port "$OPENCLAW_GATEWAY_PORT" \
+  --auth token \
+  --token "$TOKEN"
